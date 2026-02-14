@@ -19,7 +19,7 @@ class AuthViewModel : ViewModel() {
         // Fake Authentication Logic
         // Admin: admin / admin
         // User: user / user
-        if (username == "admin" && password == "admin") {
+        if (username == "1" && password == "1") {
             loginError = null
             onSuccess(true) // true = isAdmin
         } else if (username == "user" && password == "user") {

@@ -106,7 +106,7 @@ fun LoginScreen(
         Spacer(modifier = Modifier.height(16.dp))
         
         Text(
-            text = "Admin: admin/admin | User: user/user",
+            text = "Admin: 1/1 | User: user/user",
             style = MaterialTheme.typography.bodySmall,
             color = Color.Gray
         )

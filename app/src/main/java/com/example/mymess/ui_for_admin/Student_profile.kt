@@ -1,5 +1,7 @@
 package com.example.mymess.ui_for_admin
+
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
@@ -7,12 +9,10 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBack
-import androidx.compose.material.icons.outlined.Bedtime
-import androidx.compose.material.icons.outlined.Coffee
-import androidx.compose.material.icons.outlined.DateRange
-import androidx.compose.material.icons.outlined.WbSunny
+import androidx.compose.material.icons.filled.Refresh
+import androidx.compose.material.icons.outlined.*
 import androidx.compose.material3.*
-import androidx.compose.runtime.Composable
+import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -22,14 +22,20 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.example.mymess.data.Student
+import com.example.mymess.data.StudentRepository
+import kotlinx.coroutines.launch
 
 @Composable
 fun StudentProfileScreen(
     studentId: String,
     onBackClick: () -> Unit = {}
 ) {
-    // Lookup student
-    val student = sampleStudents.find { it.id == studentId }
+    val scope = rememberCoroutineScope()
+    val snackbarHostState = remember { SnackbarHostState() }
+    
+    // Lookup student from Repository (Live Update)
+    val student = StudentRepository.students.find { it.id == studentId }
 
     if (student == null) {
         Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
@@ -39,8 +45,8 @@ fun StudentProfileScreen(
     }
 
     val totalMeals = student.breakfastCount + student.lunchCount + student.dinnerCount
+    var showRenewDialog by remember { mutableStateOf(false) }
 
-    // Removed Scaffold as it's provided by MainAppNavigation
     Box(
         modifier = Modifier
             .fillMaxSize()
@@ -55,12 +61,41 @@ fun StudentProfileScreen(
         ) {
             // 1. Profile Header Card
             ProfileDetailCard(student)
+            
+            // 2. Credits Card (New)
+            CreditsCard(
+                student = student,
+                onRenew = { showRenewDialog = true }
+            )
 
-            // 2. Meal Summary Card
+            // 3. Meal Summary Card
             SummaryCard(student, totalMeals)
 
-            // 3. Attendance History Card
-            HistoryCard()
+            // 4. Payment/Renewal History (New)
+            val paymentHistory = StudentRepository.getPaymentHistory(student.id)
+            PaymentHistoryCard(paymentHistory)
+
+            // 5. Attendance History Card
+            HistoryCard(student)
+        }
+        
+        SnackbarHost(
+            hostState = snackbarHostState,
+            modifier = Modifier.align(Alignment.BottomCenter)
+        )
+
+        if (showRenewDialog) {
+            RenewPlanDialog(
+                student = student,
+                onDismiss = { showRenewDialog = false },
+                onConfirm = { selectedPlans ->
+                    StudentRepository.renewStudent(student.id, selectedPlans)
+                    showRenewDialog = false
+                    scope.launch {
+                        snackbarHostState.showSnackbar("Plan Renewed Successfully")
+                    }
+                }
+            )
         }
     }
 }
@@ -106,14 +141,71 @@ fun ProfileDetailCard(student: Student) {
             Spacer(modifier = Modifier.height(4.dp))
             // Details
             Text(
-                text = "Student Number: ${student.studentNumber}",
+                text = "ID: ${student.id}",
                 style = MaterialTheme.typography.bodyMedium.copy(color = Color.Gray)
             )
+            // Number removed as per request
             Text(
                 text = "Mobile: ${student.mobile}",
                 style = MaterialTheme.typography.bodyMedium.copy(color = Color.Gray)
             )
         }
+    }
+}
+
+@Composable
+fun CreditsCard(student: Student, onRenew: () -> Unit) {
+    Card(
+        colors = CardDefaults.cardColors(containerColor = Color.White),
+        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
+        shape = RoundedCornerShape(12.dp),
+        modifier = Modifier.fillMaxWidth()
+    ) {
+        Column(modifier = Modifier.padding(20.dp)) {
+             Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    text = "Meal Credits",
+                    style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold, color = Color(0xFF1E293B))
+                )
+                Button(
+                    onClick = onRenew,
+                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF2E7D32)),
+                    shape = RoundedCornerShape(8.dp),
+                    contentPadding = PaddingValues(horizontal = 12.dp, vertical = 0.dp),
+                    modifier = Modifier.height(32.dp)
+                ) {
+                    Icon(Icons.Default.Refresh, null, modifier = Modifier.size(16.dp))
+                    Spacer(modifier = Modifier.width(4.dp))
+                    Text("Renew", fontSize = 12.sp)
+                }
+            }
+            
+            Spacer(modifier = Modifier.height(16.dp))
+            
+            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceAround) {
+                CreditItem("Breakfast", student.remainingBreakfasts.toString(), if(student.remainingBreakfasts <= 0) Color.Red else Color(0xFF1E293B))
+                CreditItem("Lunch", student.remainingLunches.toString(), if(student.remainingLunches <= 0) Color.Red else Color(0xFF1E293B))
+                CreditItem("Dinner", student.remainingDinners.toString(), if(student.remainingDinners <= 0) Color.Red else Color(0xFF1E293B))
+            }
+            Spacer(modifier = Modifier.height(12.dp))
+            Divider(color = Color.LightGray.copy(alpha = 0.3f))
+            Spacer(modifier = Modifier.height(12.dp))
+            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.Center) {
+                 CreditItem("Sunday Specials", student.remainingSundayMeals.toString(), Color(0xFFFFA000))
+            }
+        }
+    }
+}
+
+@Composable
+fun CreditItem(label: String, value: String, valueColor: Color) {
+    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+        Text(value, style = MaterialTheme.typography.headlineMedium.copy(fontWeight = FontWeight.Bold, color = valueColor))
+        Text(label, style = MaterialTheme.typography.bodySmall.copy(color = Color.Gray))
     }
 }
 
@@ -127,7 +219,7 @@ fun SummaryCard(student: Student, totalMeals: Int) {
     ) {
         Column(modifier = Modifier.padding(20.dp)) {
             Text(
-                text = "इस महीने का Summary", // Hindi/English mix
+                text = "This Month's Usage",
                 style = MaterialTheme.typography.titleMedium.copy(
                     fontWeight = FontWeight.Bold,
                     color = Color(0xFF1E293B)
@@ -154,7 +246,7 @@ fun SummaryCard(student: Student, totalMeals: Int) {
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Text(
-                    text = "कुल Meals:", // Hindi/English mix
+                    text = "Total Consumed:",
                     style = MaterialTheme.typography.titleMedium.copy(
                         fontWeight = FontWeight.Bold,
                         color = Color(0xFF1E293B)
@@ -189,7 +281,145 @@ fun StatItem(icon: ImageVector, count: Int, label: String, color: Color) {
 }
 
 @Composable
-fun HistoryCard() {
+fun PaymentHistoryCard(payments: List<com.example.mymess.data.PaymentRecord>) {
+    Card(
+        colors = CardDefaults.cardColors(containerColor = Color.White),
+        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
+        shape = RoundedCornerShape(12.dp),
+        modifier = Modifier.fillMaxWidth()
+    ) {
+        Column(modifier = Modifier.padding(16.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Icon(Icons.Outlined.Receipt, contentDescription = null, tint = Color(0xFF2E7D32), modifier = Modifier.size(20.dp))
+                Spacer(modifier = Modifier.width(8.dp))
+                Text(
+                    text = "Payment / Renewal History",
+                    style = MaterialTheme.typography.titleMedium.copy(
+                        fontWeight = FontWeight.Bold,
+                        color = Color(0xFF1E293B)
+                    )
+                )
+            }
+            Spacer(modifier = Modifier.height(16.dp))
+            
+            if (payments.isEmpty()) {
+                Text("No payment history found.", style = MaterialTheme.typography.bodyMedium.copy(color = Color.Gray))
+            } else {
+                payments.take(5).forEach { payment ->
+                    PaymentItemRow(payment)
+                    if (payment != payments.lastOrNull()) {
+                        Divider(modifier = Modifier.padding(vertical = 8.dp), color = Color.LightGray.copy(alpha = 0.2f))
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+fun PaymentItemRow(payment: com.example.mymess.data.PaymentRecord) {
+    val formatter = java.text.SimpleDateFormat("dd MMM yyyy, hh:mm a", java.util.Locale.getDefault())
+    val dateStr = formatter.format(java.util.Date(payment.date))
+    
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.SpaceBetween,
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Column {
+            Text(text = "Plan Renewal", style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Bold))
+            Text(text = dateStr, style = MaterialTheme.typography.bodySmall.copy(color = Color.Gray))
+        }
+        Text(
+            text = "₹${payment.amount}",
+            style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Bold, color = Color(0xFF2E7D32))
+        )
+    }
+}
+
+@Composable
+fun RenewPlanDialog(student: Student, onDismiss: () -> Unit, onConfirm: (List<String>) -> Unit) {
+    val plans = remember { mutableStateListOf("Breakfast", "Lunch", "Dinner") }
+    
+    // Determine which plans are eligible for renewal (credits <= 0)
+    fun isEligible(plan: String): Boolean {
+        return when(plan) {
+            "Breakfast" -> student.remainingBreakfasts <= 0
+            "Lunch" -> student.remainingLunches <= 0
+            "Dinner" -> student.remainingDinners <= 0
+            else -> false
+        }
+    }
+
+    // Pre-select only eligible plans
+    val selectedPlans = remember { 
+        mutableStateListOf<String>().apply {
+            if (isEligible("Breakfast")) add("Breakfast")
+            if (isEligible("Lunch")) add("Lunch")
+            if (isEligible("Dinner")) add("Dinner")
+        }
+    }
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("Renew Plan") },
+        text = {
+            Column {
+                Text("Select meals to renew (30/month each). Only empty plans can be renewed.", style = MaterialTheme.typography.bodyMedium)
+                Spacer(modifier = Modifier.height(8.dp))
+                plans.forEach { plan ->
+                    val eligible = isEligible(plan)
+                    
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clickable(enabled = eligible) {
+                                if (selectedPlans.contains(plan)) selectedPlans.remove(plan) else selectedPlans.add(plan)
+                            }
+                            .padding(vertical = 4.dp)
+                    ) {
+                        Checkbox(
+                            checked = selectedPlans.contains(plan),
+                            onCheckedChange = { isChecked ->
+                                if (isChecked) selectedPlans.add(plan) else selectedPlans.remove(plan)
+                            },
+                            enabled = eligible
+                        )
+                        Column {
+                            Text(
+                                text = plan, 
+                                color = if (eligible) Color.Black else Color.Gray
+                            )
+                            if (!eligible) {
+                                Text(
+                                    text = "Credits remaining",
+                                    style = MaterialTheme.typography.bodySmall.copy(color = Color.Gray, fontSize = 10.sp)
+                                )
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        confirmButton = {
+            Button(
+                onClick = {
+                    if (selectedPlans.isNotEmpty()) {
+                        onConfirm(selectedPlans)
+                    }
+                },
+                enabled = selectedPlans.isNotEmpty()
+            ) { Text("Confirm Renewal") }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) { Text("Cancel") }
+        }
+    )
+}
+
+@Composable
+fun HistoryCard(student: Student) {
     Card(
         colors = CardDefaults.cardColors(containerColor = Color.White),
         elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
@@ -201,7 +431,7 @@ fun HistoryCard() {
                 Icon(Icons.Outlined.DateRange, contentDescription = null, tint = Color(0xFFFF5722), modifier = Modifier.size(20.dp))
                 Spacer(modifier = Modifier.width(8.dp))
                 Text(
-                    text = "Attendance History",
+                    text = "Last Attendance",
                     style = MaterialTheme.typography.titleMedium.copy(
                         fontWeight = FontWeight.Bold,
                         color = Color(0xFF1E293B)
@@ -210,14 +440,19 @@ fun HistoryCard() {
             }
             Spacer(modifier = Modifier.height(16.dp))
 
-            // Static History Item (Example)
-            Column {
-                Text("2026-01-09", style = MaterialTheme.typography.bodyMedium.copy(color = Color.Gray, fontWeight = FontWeight.SemiBold))
-                Spacer(modifier = Modifier.height(8.dp))
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    HistoryChip(Icons.Outlined.Coffee, "Breakfast")
-                    HistoryChip(Icons.Outlined.WbSunny, "Lunch")
-                    HistoryChip(Icons.Outlined.Bedtime, "Dinner")
+            if (student.lastAttendanceDate == 0L) {
+                 Text("No attendance recorded yet.", style = MaterialTheme.typography.bodyMedium.copy(color = Color.Gray))
+            } else {
+                val formatter = java.text.SimpleDateFormat("dd MMM yyyy, hh:mm a", java.util.Locale.getDefault())
+                val dateStr = formatter.format(java.util.Date(student.lastAttendanceDate))
+                
+                Column {
+                    Text("Latest Activity", style = MaterialTheme.typography.bodyMedium.copy(color = Color.Gray, fontWeight = FontWeight.SemiBold))
+                    Spacer(modifier = Modifier.height(8.dp))
+                    Text(
+                        text = dateStr,
+                        style = MaterialTheme.typography.headlineSmall.copy(fontWeight = FontWeight.Bold, color = Color(0xFF1E293B))
+                    )
                 }
             }
         }

@@ -12,7 +12,8 @@ enum class Screen(val route: String, val title: String, val icon: ImageVector? =
     AdminDashboard("admin_dashboard", "Home", Icons.Default.Home),
     StudentList("student_list", "Students", Icons.Default.Person),
     StudentProfile("student_profile/{studentId}", "Student Profile"), // Dynamic route
-    EmployeeProfile("employee_profile", "Employees", Icons.Default.Work),
+    EmployeeList("employee_list", "Employees", Icons.Default.Work),
+    EmployeeDetail("employee_detail/{employeeId}", "Employee Details"),
     UserDashboard("user_dashboard", "User Dashboard", Icons.Default.Home),
     Records("records", "Records", Icons.Default.DateRange);
 

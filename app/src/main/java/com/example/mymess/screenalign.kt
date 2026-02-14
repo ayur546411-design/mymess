@@ -19,28 +19,11 @@ import androidx.compose.ui.graphics.Color
 import androidx.navigation.NavDestination.Companion.hierarchy
 import androidx.navigation.NavGraph.Companion.findStartDestination
 import androidx.navigation.NavType
-import androidx.navigation.compose.NavHost
-import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
-import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
-
-import com.example.mymess.ui.auth.LoginScreen
 import com.example.mymess.ui_for_admin.*
-import com.example.mymess.ui_for_user.UserHomeScreen
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
-
-
-enum class ScreenName{
-
-
-}
-
-
-
-
+import androidx.compose.animation.AnimatedContentTransitionScope
+import androidx.compose.animation.core.tween
 
 @Composable
 fun MainAppNavigation() {
@@ -53,11 +36,12 @@ fun MainAppNavigation() {
     val showBottomBar = currentDestination?.route != Screen.Login.route
 
     // Define Navigation Items for Roles
+    // Define Navigation Items for Roles
     val adminNavItems = listOf(
         Screen.AdminDashboard,
         Screen.StudentList,
         Screen.Records,
-        Screen.EmployeeProfile
+        Screen.EmployeeList
     )
     
     // For User, currently we only have Dashboard. 
@@ -121,7 +105,31 @@ fun MainAppNavigation() {
         NavHost(
             navController = navController,
             startDestination = Screen.Login.route,
-            modifier = Modifier.padding(innerPadding)
+            modifier = Modifier.padding(innerPadding),
+            enterTransition = {
+                slideIntoContainer(
+                    AnimatedContentTransitionScope.SlideDirection.Left,
+                    animationSpec = tween(700)
+                )
+            },
+            exitTransition = {
+                slideOutOfContainer(
+                    AnimatedContentTransitionScope.SlideDirection.Left,
+                    animationSpec = tween(700)
+                )
+            },
+            popEnterTransition = {
+                slideIntoContainer(
+                    AnimatedContentTransitionScope.SlideDirection.Right,
+                    animationSpec = tween(700)
+                )
+            },
+            popExitTransition = {
+                slideOutOfContainer(
+                    AnimatedContentTransitionScope.SlideDirection.Right,
+                    animationSpec = tween(700)
+                )
+            }
         ) {
             composable(Screen.Login.route) {
                 LoginScreen(navController)
@@ -145,20 +153,28 @@ fun MainAppNavigation() {
                 arguments = listOf(navArgument("studentId") { type = NavType.StringType })
             ) { backStackEntry ->
                 val studentId = backStackEntry.arguments?.getString("studentId")
-                // We'll update StudentProfile to take ID or load logic
-                // For now assuming StudentProfileScreen exists and can handle it
-                // We might need to refactor StudentProfileScreen signature.
-                // Assuming we pass the ID to it.
                 if (studentId != null) {
                     StudentProfileScreen(studentId = studentId)
                 }
             }
-            composable(Screen.EmployeeProfile.route) {
-                ProfileScreen()
+            composable(Screen.EmployeeList.route) {
+                EmployeeListScreen(
+                    onEmployeeClick = { employeeId ->
+                        navController.navigate(Screen.EmployeeDetail.createRoute(employeeId))
+                    }
+                )
+            }
+            composable(
+                route = Screen.EmployeeDetail.route,
+                arguments = listOf(navArgument("employeeId") { type = NavType.StringType })
+            ) { backStackEntry ->
+                val employeeId = backStackEntry.arguments?.getString("employeeId")
+                if(employeeId != null) {
+                    EmployeeProfileScreen(employeeId = employeeId)
+                }
             }
              composable(Screen.Records.route) {
-                // Placeholder for Records
-                Text("Records Screen Placeholder")
+                RecordsScreen()
             }
             composable("user_dashboard") {
                 UserHomeScreen(navController)

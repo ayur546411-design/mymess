@@ -20,6 +20,9 @@ import com.example.mymess.ui_for_admin.ProfileScreen
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        
+        // Initialize Repository with Context for persistence
+        com.example.mymess.data.StudentRepository.init(this)
 
         // --- FIXED 120Hz LOGIC ---
         // This single block works for both old and new Android versions
